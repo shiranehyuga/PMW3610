@@ -8,7 +8,7 @@ class PMW3610
 {
 public:
     // モーションデータを格納する構造体
-    struct MotionData
+    struct PMW3610_data
     {
         bool isMotion;
         int16_t dx;
@@ -21,14 +21,16 @@ public:
 
     PMW3610(uint8_t ncsPin);
     bool begin();
-    void readMotion(MotionData *data);
-    void writeRegister(uint8_t reg, uint8_t value);
-    uint8_t readRegister(uint8_t reg);
     void setCpi(uint16_t cpi);
+    unsigned int getCpi(); // CPIを取得するメソッド
+    PMW3610_data readMotion();
+    void writeReg(uint8_t reg, uint8_t value);
+    uint8_t readReg(uint8_t reg);
 
 private:
     uint8_t _ncs;
-    uint8_t _mosi; // ArduinoのMOSIピン番号を保持
+    uint8_t _mosi;            // ArduinoのMOSIピン番号を保持
+    PMW3610_data _motionData; // 内部で使用するMotionDataインスタンス
 };
 
 #endif

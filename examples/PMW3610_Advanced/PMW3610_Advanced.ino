@@ -8,20 +8,25 @@ const int PIN_NCS = 10; // チップセレクトピン
 // PMW3610センサーオブジェクトを作成
 PMW3610 sensor(PIN_NCS);
 
+// 累積移動量を追跡
+long totalX = 0;
+long totalY = 0;
+
 void setup()
 {
     Serial.begin(115200);
     while (!Serial)
         ; // シリアルポートが開くのを待つ
 
-    Serial.println("PMW3610 Basic Read Example");
+    Serial.println("PMW3610 Advanced Example");
+    Serial.println("=======================");
 
     // センサーの初期化
     if (sensor.begin())
     {
         Serial.println("Sensor initialization successful.");
         
-        // 初期化成功後、センサー情報を表示
+        // センサー情報を表示
         uint8_t productId = sensor.readReg(0x00);
         uint8_t revisionId = sensor.readReg(0x01);
         
@@ -30,10 +35,14 @@ void setup()
         Serial.print("Revision ID: 0x");
         Serial.println(revisionId, HEX);
         
-        // CPIを設定（例：1600 CPI）
-        sensor.setCpi(1600);
-        Serial.println("CPI set to 1600");
-        Serial.println("Ready to detect motion...");
+        // 高解像度CPI設定
+        sensor.setCpi(3200);
+        Serial.print("CPI set to: ");
+        Serial.println(sensor.getCpi());
+        
+        Serial.println("\nOutput format:");
+        Serial.println("Motion | dx | dy | Total X | Total Y | Quality | Shutter | MaxPixel");
+        Serial.println("--------------------------------------------------------------------");
     }
     else
     {
@@ -49,24 +58,33 @@ void setup()
 
 void loop()
 {
-    // 新しいAPIを使用してモーションデータを読み取る
+    // 方法1: 戻り値版を使用（推奨）
     PMW3610::PMW3610_data data = sensor.readMotion();
-
-    // isMotionフラグが立っている場合（動きがあった場合）にのみ出力
+    
     if (data.isMotion)
     {
-        Serial.print("Motion detected! ");
-        Serial.print("dx: ");
+        // 累積移動量を更新
+        totalX += data.dx;
+        totalY += data.dy;
+        
+        // 詳細情報を表示
+        Serial.print("  YES  | ");
         Serial.print(data.dx);
-        Serial.print(", dy: ");
+        Serial.print(" | ");
         Serial.print(data.dy);
-        Serial.print(", squal: ");
+        Serial.print(" | ");
+        Serial.print(totalX);
+        Serial.print(" | ");
+        Serial.print(totalY);
+        Serial.print(" | ");
         Serial.print(data.squal);
-        Serial.print(", shutter: ");
+        Serial.print(" | ");
         Serial.print((data.shutterUpper << 8) | data.shutterLower);
-        Serial.print(", maxPixel: ");
+        Serial.print(" | ");
         Serial.println(data.maxPixel);
     }
+    
+    // 従来版の使用例は削除（APIが変更されたため）
 
-    delay(10); // ポーリング間隔
+    delay(5); // 高速ポーリング
 }
