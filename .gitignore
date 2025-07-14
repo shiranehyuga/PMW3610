@@ -1,0 +1,107 @@
+# Arduino Library .gitignore
+
+# Compiled Object files
+*.o
+*.a
+*.so
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Arduino IDE files
+*.ino.bak
+*.ino.orig
+*.hex
+*.elf
+*.map
+
+# Temporary files
+*~
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-*
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Arduino specific
+libraries/*/examples/*/build/
+libraries/*/src/*.d
+
+# Documentation build
+docs/_build/
+docs/html/
+docs/latex/
+
+# Package files
+*.zip
+*.tar.gz
+*.rar
+
+# Editor specific
+*#
+.#*
+*.swp
+*.swo
+*~
+
+# Python (if used for build scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js (if used for build tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local development
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Test results
+test-results/
+coverage/
+
+# Personal notes
+notes.txt
+TODO.txt
+README_DEV.md
