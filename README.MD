@@ -4,30 +4,33 @@ PMW3610光学センサー用のArduinoライブラリです。このライブラ
 
 ## 特徴
 
-- 3線SPI通信に対応
+- 3線SPI BitBang通信に対応
+- 標準SPIライブラリ不要
 - モーションデータの読み取り（X/Y移動量、品質情報）
 - CPI（Count Per Inch）設定可能（200-3200）
-- Motion Burstモードでの高速データ読み取り
 - 簡単な初期化とセットアップ
+- ESP32、Arduino対応
 
 ## 対応ハードウェア
 
 - PMW3610光学センサー
-- Arduino Uno, Nano, Pro Mini など（3.3V推奨）
+- Arduino Uno, Nano, Pro Mini など
 - ESP32, ESP8266
-- その他SPI対応マイコン
+- その他デジタルI/O対応マイコン
 
-**注意**: 5V ArduinoボードでPMW3610（3.3V）を使用する場合は、ロジックレベルシフターが必要です。
+**注意**: PMW3610は3.3V動作です。5V Arduinoボードで使用する場合は、ロジックレベルシフターまたは分圧回路が必要です。
 
 ## 配線
 
-| PMW3610ピン | Arduinoピン | 説明 |
-|-------------|-------------|------|
+| PMW3610ピン | Arduinoピン例 | 説明 |
+|-------------|---------------|------|
 | VCC | 3.3V | 電源（3.3V） |
 | GND | GND | グランド |
-| SCLK | D13 (SCK) | SPIクロック |
-| SDIO | D11 (MOSI) | SPIデータ（双方向） |
-| NCS | D10 | チップセレクト（任意のデジタルピン） |
+| NCS | D17 | チップセレクト（任意のデジタルピン） |
+| SCLK | D18 | SPIクロック（任意のデジタルピン） |
+| SDIO | D19 | SPIデータ双方向（任意のデジタルピン） |
+
+**重要**: 3線SPI BitBang実装のため、標準SPIピンを使用する必要はありません。任意のデジタルピンが使用可能です。
 
 ## インストール
 
@@ -40,18 +43,21 @@ PMW3610光学センサー用のArduinoライブラリです。このライブラ
 ### 基本的な使用例
 
 ```cpp
-#include <SPI.h>
 #include "PMW3610.h"
 
-const int PIN_NCS = 10; // チップセレクトピン
+// 3線SPI用ピン定義
+const int PIN_NCS = 17;   // チップセレクト
+const int PIN_SCLK = 18;  // SPIクロック
+const int PIN_SDIO = 19;  // SPIデータ（双方向）
 
-PMW3610 sensor(PIN_NCS);
+PMW3610 sensor(PIN_NCS, PIN_SCLK, PIN_SDIO);
 
 void setup() {
     Serial.begin(115200);
     
     if (sensor.begin()) {
         Serial.println("センサー初期化成功");
+        sensor.setCpi(1000);  // CPI設定
     } else {
         Serial.println("センサー初期化失敗");
         while (1);
@@ -68,7 +74,7 @@ void loop() {
         Serial.println(data.dy);
     }
     
-    delay(10);
+    delay(5);
 }
 ```
 
@@ -77,6 +83,9 @@ void loop() {
 ```cpp
 // CPIを1600に設定
 sensor.setCpi(1600);
+
+// 現在のCPI設定を取得
+uint16_t currentCpi = sensor.getCpi();
 ```
 
 ## API リファレンス
@@ -86,10 +95,12 @@ sensor.setCpi(1600);
 #### コンストラクタ
 
 ```cpp
-PMW3610(uint8_t ncsPin)
+PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin)
 ```
 
 - `ncsPin`: チップセレクトピン番号
+- `sclkPin`: SPIクロックピン番号
+- `sdioPin`: SPI双方向データピン番号
 
 #### メソッド
 
@@ -108,7 +119,7 @@ PMW3610(uint8_t ncsPin)
 **戻り値**
 - `PMW3610_data`: モーションデータ構造体
 
-##### `unsigned int getCpi()`
+##### `uint16_t getCpi()`
 
 現在のCPI設定を取得します。
 
@@ -120,7 +131,7 @@ PMW3610(uint8_t ncsPin)
 CPI（Count Per Inch）を設定します。
 
 **パラメータ**
-- `cpi`: CPI値（200-3200、200の倍数）
+- `cpi`: CPI値（200, 400, 600, 800, 1000, 1200, 1600, 3200）
 
 ##### `void writeReg(uint8_t reg, uint8_t value)`
 
@@ -154,32 +165,51 @@ struct PMW3610_data {
 };
 ```
 
+### レジスタ定数
+
+```cpp
+#define REG_Product_ID 0x00
+#define REG_Revision_ID 0x01
+#define REG_Motion 0x02
+#define REG_Delta_X_L 0x03
+#define REG_Delta_X_H 0x04
+#define REG_Delta_Y_L 0x05
+#define REG_Delta_Y_H 0x06
+#define REG_SQUAL 0x07
+#define REG_Power_Up_Reset 0x3A
+#define REG_Resolution 0x47
+```
+
 ## トラブルシューティング
 
 ### センサーが初期化されない
 
-1. **配線の確認**: 特にSPI接続とNCSピンを確認
+1. **配線の確認**: NCS、SCLK、SDIOピンの接続を確認
 2. **電圧レベル**: 3.3V電源を使用しているか確認
-3. **ロジックレベルシフター**: 5V Arduinoの場合は必要
+3. **ロジックレベル**: 5V Arduinoの場合はレベルシフターが必要
+4. **Product ID**: readReg(REG_Product_ID)で0x42が返されるか確認
 
 ### モーションが検出されない
 
-1. **表面**: センサーの下に適切な表面があるか確認
+1. **表面**: センサーの下に適切な表面があるか確認（光沢のない表面推奨）
 2. **CPI設定**: 使用環境に適したCPI値に調整
-3. **ポーリング頻度**: delay時間を調整
+3. **ポーリング頻度**: delay時間を5ms程度に設定
+4. **品質**: data.squal値を確認（低い場合は表面を変更）
 
 ### データが不正確
 
-1. **SPI通信**: ノイズや接続不良を確認
+1. **配線**: ノイズや接続不良を確認
 2. **電源の安定性**: 3.3V電源が安定しているか確認
+3. **ピン設定**: 正しいピン番号が設定されているか確認
 
 ## 仕様
 
-- **通信方式**: 3線SPI
+- **通信方式**: 3線SPI BitBang
 - **電源電圧**: 3.3V
-- **CPI範囲**: 200-3200（200の倍数）
+- **CPI範囲**: 200, 400, 600, 800, 1000, 1200, 1600, 3200
 - **最大フレームレート**: 12,000 FPS
 - **最大速度**: 60 IPS（Inch Per Second）
+- **Product ID**: 0x42
 
 ## ライセンス
 
@@ -193,6 +223,6 @@ struct PMW3610_data {
 
 ### v1.0.0
 - 初回リリース
+- 3線SPI BitBang実装
 - 基本的なモーション読み取り機能
-- CPI設定機能
-- Motion Burstモード対応
+- CPI設定機能（8段階）

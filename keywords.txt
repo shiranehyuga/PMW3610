@@ -21,11 +21,22 @@ writeReg	KEYWORD2
 readReg	KEYWORD2
 
 #######################################
-# Instances (KEYWORD2)
+# Register Constants (LITERAL1)
 #######################################
 
+REG_Product_ID	LITERAL1
+REG_Revision_ID	LITERAL1
+REG_Motion	LITERAL1
+REG_Delta_X_L	LITERAL1
+REG_Delta_X_H	LITERAL1
+REG_Delta_Y_L	LITERAL1
+REG_Delta_Y_H	LITERAL1
+REG_SQUAL	LITERAL1
+REG_Power_Up_Reset	LITERAL1
+REG_Resolution	LITERAL1
+
 #######################################
-# Constants (LITERAL1)
+# Data Structure Members (LITERAL1)
 #######################################
 
 isMotion	LITERAL1
