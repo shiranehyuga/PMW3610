@@ -1,0 +1,37 @@
+#######################################
+# Syntax Coloring Map For PMW3610_Module
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+PMW3610	KEYWORD1
+PMW3610_data	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+readMotion	KEYWORD2
+setCpi	KEYWORD2
+getCpi	KEYWORD2
+writeReg	KEYWORD2
+readReg	KEYWORD2
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+isMotion	LITERAL1
+dx	LITERAL1
+dy	LITERAL1
+squal	LITERAL1
+shutterUpper	LITERAL1
+shutterLower	LITERAL1
+maxPixel	LITERAL1
