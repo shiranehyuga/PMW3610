@@ -12,136 +12,159 @@
 #define REG_Resolution 0x47
 #define REG_Motion_Burst 0x50
 
-PMW3610::PMW3610(uint8_t ncsPin)
-{
-    _ncs = ncsPin;
-    _mosi = MOSI; // Arduinoの標準MOSIピンを使用
+PMW3610::PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin) {
+    _ncsPin = ncsPin;
+    _sclkPin = sclkPin;
+    _sdioPin = sdioPin;
+    _currentCpi = 1000;
 }
 
-bool PMW3610::begin()
-{
-    pinMode(_ncs, OUTPUT);
-    digitalWrite(_ncs, HIGH);
+bool PMW3610::begin() {
+    // ピン初期化
+    pinMode(_ncsPin, OUTPUT);
+    pinMode(_sclkPin, OUTPUT);
+    // _sdioPin は動的に切り替え
 
-    SPI.begin();
+    digitalWrite(_ncsPin, HIGH);
+    digitalWrite(_sclkPin, LOW);
+
+    delay(100);
 
     // ソフトウェアリセット
-    writeReg(REG_Power_Up_Reset, 0x5A);
+    writeRegBitBang(REG_Power_Up_Reset, 0x5A);
     delay(50);
 
-    // IDを読み取って通信を確認
-    uint8_t productId = readReg(REG_Product_ID);
-    uint8_t revisionId = readReg(REG_Revision_ID);
+    // Product IDを読み取り
+    uint8_t productId = readRegBitBang(REG_Product_ID);
+    uint8_t revisionId = readRegBitBang(REG_Revision_ID);
 
-    // PMW3610の期待されるID (例: 0x42)
-    if (productId != 0x42)
-    {
-        return false;
+    // PMW3610の期待されるProduct ID (通常0x42)
+    if (productId == 0x42 || (productId != 0x00 && productId != 0xFF)) {
+        // 初期設定
+        writeRegBitBang(0x3B, 0x00);  // Power-down register
+        readRegBitBang(REG_Motion);   // モーションレジスタをクリア
+
+        // デフォルトCPI設定
+        setCpiBitBang(_currentCpi);
+
+        return true;
     }
 
-    // 初期設定
-    writeReg(0x3B, 0x00); // Power-down register
-    readReg(REG_Motion);  // モーションレジスタをクリア
-    setCpi(1000);         // デフォルトCPIを1000に設定
-
-    return true;
+    return false;
 }
 
-void PMW3610::writeReg(uint8_t reg, uint8_t value)
-{
-    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
+PMW3610::PMW3610_data PMW3610::readMotion() {
+    return readMotionBitBang();
+}
 
-    digitalWrite(_ncs, LOW);
-    delayMicroseconds(1); // NCS setup time
+void PMW3610::setCpi(uint16_t cpi) {
+    setCpiBitBang(cpi);
+    _currentCpi = cpi;
+}
 
-    SPI.transfer(reg | 0x80); // 書き込みモード（MSBを1に設定）
-    SPI.transfer(value);
+uint16_t PMW3610::getCpi() {
+    return _currentCpi;
+}
 
-    digitalWrite(_ncs, HIGH);
-    SPI.endTransaction();
+void PMW3610::writeReg(uint8_t reg, uint8_t value) {
+    writeRegBitBang(reg, value);
+}
 
-    // 書き込み完了待機時間
+uint8_t PMW3610::readReg(uint8_t reg) {
+    return readRegBitBang(reg);
+}
+
+// 3線SPI書き込み関数
+void PMW3610::writeRegBitBang(uint8_t reg, uint8_t value) {
+    digitalWrite(_ncsPin, LOW);
+    delayMicroseconds(2);
+
+    // SDIO を出力モードに設定
+    pinMode(_sdioPin, OUTPUT);
+
+    // レジスタアドレス送信（書き込みモード: MSB=1）
+    shiftOut(_sdioPin, _sclkPin, MSBFIRST, reg | 0x80);
+
+    // データ送信
+    shiftOut(_sdioPin, _sclkPin, MSBFIRST, value);
+
+    digitalWrite(_ncsPin, HIGH);
     delayMicroseconds(50);
 }
 
-uint8_t PMW3610::readReg(uint8_t reg)
-{
-    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
+// 3線SPI読み取り関数
+uint8_t PMW3610::readRegBitBang(uint8_t reg) {
+    digitalWrite(_ncsPin, LOW);
+    delayMicroseconds(2);
 
-    digitalWrite(_ncs, LOW);
-    delayMicroseconds(1); // NCS setup time
+    // 送信フェーズ: SDIO を出力モードに設定
+    pinMode(_sdioPin, OUTPUT);
 
-    // レジスタアドレスを送信（読み取りモード）
-    SPI.transfer(reg & 0x7F);
+    // レジスタアドレス送信（読み取りモード: MSB=0）
+    shiftOut(_sdioPin, _sclkPin, MSBFIRST, reg & 0x7F);
 
-    // アドレス送信後の待機時間（PMW3610仕様）
+    // PMW3610応答待機時間
     delayMicroseconds(35);
 
-    // 3線SPIのため、MOSIを入力に切り替えてデータを読み取る
-    pinMode(_mosi, INPUT);
-    delayMicroseconds(1); // ピン切り替え安定化時間
+    // 受信フェーズ: SDIO を入力モードに切り替え
+    pinMode(_sdioPin, INPUT);
+    delayMicroseconds(5);
 
-    uint8_t value = SPI.transfer(0x00);
+    // データ受信
+    uint8_t result = shiftIn(_sdioPin, _sclkPin, MSBFIRST);
 
-    pinMode(_mosi, OUTPUT);
-    delayMicroseconds(1); // ピン切り替え安定化時間
-
-    digitalWrite(_ncs, HIGH);
-    SPI.endTransaction();
-
-    // 次のアクセスまでの最小間隔
+    digitalWrite(_ncsPin, HIGH);
     delayMicroseconds(20);
 
-    return value;
+    return result;
 }
 
-void PMW3610::setCpi(uint16_t cpi)
-{
-    if (cpi < 200)
-        cpi = 200;
-    if (cpi > 3200)
-        cpi = 3200;
-    // CPIは200の倍数で設定
-    uint8_t val = (cpi / 200) - 1;
-    writeReg(REG_Resolution, val);
+// CPI設定関数
+void PMW3610::setCpiBitBang(uint16_t cpi) {
+    uint8_t cpiValue;
+
+    // CPI値をレジスタ値に変換
+    if (cpi <= 200)
+        cpiValue = 0x00;
+    else if (cpi <= 400)
+        cpiValue = 0x01;
+    else if (cpi <= 600)
+        cpiValue = 0x02;
+    else if (cpi <= 800)
+        cpiValue = 0x03;
+    else if (cpi <= 1000)
+        cpiValue = 0x04;
+    else if (cpi <= 1200)
+        cpiValue = 0x05;
+    else if (cpi <= 1600)
+        cpiValue = 0x06;
+    else
+        cpiValue = 0x07;  // 3200 CPI
+
+    writeRegBitBang(REG_Resolution, cpiValue);
 }
 
-// CPIを取得するメソッド
-unsigned int PMW3610::getCpi()
-{
-    uint8_t val = readReg(REG_Resolution);
-    return (val + 1) * 200;
-}
+// モーション読み取り関数
+PMW3610::PMW3610_data PMW3610::readMotionBitBang() {
+    PMW3610_data data = {false, 0, 0, 0, 0, 0, 0};
 
-// readMotion関数（戻り値版）
-PMW3610::PMW3610_data PMW3610::readMotion()
-{
-    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE3));
-    digitalWrite(_ncs, LOW);
-    SPI.transfer(REG_Motion_Burst & 0x7F);
-    delayMicroseconds(35);
+    // モーションレジスタを読み取り
+    uint8_t motion = readRegBitBang(REG_Motion);
 
-    // 3線SPIのため、MOSIを入力に切り替えてデータを読み取る
-    pinMode(_mosi, INPUT);
+    if (motion & 0x80) { // MOT bit (motion detected)
+        data.isMotion = true;
 
-    uint8_t burstData[12];
-    for (int i = 0; i < 12; i++)
-    {
-        burstData[i] = SPI.transfer(0x00);
+        // デルタ値を読み取り
+        uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);
+        uint8_t deltaXH = readRegBitBang(REG_Delta_X_H);
+        uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);
+        uint8_t deltaYH = readRegBitBang(REG_Delta_Y_H);
+        data.squal = readRegBitBang(REG_SQUAL);
+
+        // 16ビット符号付き値に変換
+        data.dx = (int16_t)((deltaXH << 8) | deltaXL);
+        data.dy = (int16_t)((deltaYH << 8) | deltaYL);
     }
 
-    pinMode(_mosi, OUTPUT);
-    digitalWrite(_ncs, HIGH);
-    SPI.endTransaction();
-    delayMicroseconds(1);
-
-    _motionData.isMotion = (burstData[0] & 0x80) != 0;
-    _motionData.dx = (int16_t)((burstData[2] << 8) | burstData[1]);
-    _motionData.dy = (int16_t)((burstData[4] << 8) | burstData[3]);
-    _motionData.squal = burstData[5];
-    _motionData.shutterUpper = burstData[6];
-    _motionData.shutterLower = burstData[7];
-    _motionData.maxPixel = burstData[8];
-
-    return _motionData;
+    return data;
 }

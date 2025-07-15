@@ -1,72 +1,83 @@
-#include <SPI.h>
 #include "PMW3610.h"
 
-// Arduinoのピンに合わせて設定してください
-// 5V Arduinoの場合はロジックレベルシフタが必要です
-const int PIN_NCS = 10; // チップセレクトピン
+// 3線SPI用ピン定義
+const int PIN_NCS = 17;   // チップセレクト
+const int PIN_SCLK = 18;  // SPIクロック
+const int PIN_SDIO = 19;  // SPIデータ（双方向）
 
-// PMW3610センサーオブジェクトを作成
-PMW3610 sensor(PIN_NCS);
+// PMW3610センサーインスタンス作成
+PMW3610 sensor(PIN_NCS, PIN_SCLK, PIN_SDIO);
 
-void setup()
-{
+void setup() {
     Serial.begin(115200);
-    while (!Serial)
-        ; // シリアルポートが開くのを待つ
+    delay(2000);
 
     Serial.println("PMW3610 Basic Read Example");
+    Serial.println("===========================");
 
-    // センサーの初期化
-    if (sensor.begin())
-    {
-        Serial.println("Sensor initialization successful.");
+    // ピン設定を表示
+    Serial.println("Pin Configuration:");
+    Serial.print("  NCS:  GPIO");
+    Serial.println(PIN_NCS);
+    Serial.print("  SCLK: GPIO");
+    Serial.println(PIN_SCLK);
+    Serial.print("  SDIO: GPIO");
+    Serial.println(PIN_SDIO);
+
+    // センサー初期化
+    Serial.println("\nInitializing PMW3610...");
+    
+    if (sensor.begin()) {
+        Serial.println("✓ PMW3610 initialization successful!");
         
-        // 初期化成功後、センサー情報を表示
-        uint8_t productId = sensor.readReg(0x00);
-        uint8_t revisionId = sensor.readReg(0x01);
+        // Product IDとRevision IDを表示
+        uint8_t productId = sensor.readReg(REG_Product_ID);
+        uint8_t revisionId = sensor.readReg(REG_Revision_ID);
         
         Serial.print("Product ID: 0x");
         Serial.println(productId, HEX);
         Serial.print("Revision ID: 0x");
         Serial.println(revisionId, HEX);
         
-        // CPIを設定（例：1600 CPI）
-        sensor.setCpi(1600);
-        Serial.println("CPI set to 1600");
-        Serial.println("Ready to detect motion...");
-    }
-    else
-    {
-        Serial.println("Sensor initialization failed!");
-        Serial.println("Please check:");
-        Serial.println("- Wiring connections");
-        Serial.println("- Power supply (3.3V)");
-        Serial.println("- Logic level shifter (if using 5V Arduino)");
-        while (1)
-            ; // 失敗した場合はここで停止
+        // CPI設定
+        sensor.setCpi(1000);
+        Serial.print("CPI set to: ");
+        Serial.println(sensor.getCpi());
+        
+        Serial.println("\nStarting motion detection...");
+        Serial.println("Move the sensor to see motion data:");
+        Serial.println("Format: dx,dy");
+    } else {
+        Serial.println("✗ PMW3610 initialization failed!");
+        Serial.println("Check wiring and power supply");
+        while (1) {
+            delay(1000);
+        }
     }
 }
 
-void loop()
-{
-    // 新しいAPIを使用してモーションデータを読み取る
-    PMW3610::PMW3610_data data = sensor.readMotion();
-
-    // isMotionフラグが立っている場合（動きがあった場合）にのみ出力
-    if (data.isMotion)
-    {
-        Serial.print("Motion detected! ");
-        Serial.print("dx: ");
-        Serial.print(data.dx);
-        Serial.print(", dy: ");
-        Serial.print(data.dy);
-        Serial.print(", squal: ");
-        Serial.print(data.squal);
-        Serial.print(", shutter: ");
-        Serial.print((data.shutterUpper << 8) | data.shutterLower);
-        Serial.print(", maxPixel: ");
-        Serial.println(data.maxPixel);
+void loop() {
+    // モーションデータを読み取り
+    PMW3610::PMW3610_data motion = sensor.readMotion();
+    
+    if (motion.isMotion) {
+        // CSV形式で出力（シリアルプロッターに対応）
+        Serial.print(motion.dx);
+        Serial.print(",");
+        Serial.println(motion.dy);
+        
+        // 詳細情報も表示したい場合（コメントアウトを外す）
+        /*
+        Serial.println("=== Motion Detected ===");
+        Serial.print("Delta X: ");
+        Serial.println(motion.dx);
+        Serial.print("Delta Y: ");
+        Serial.println(motion.dy);
+        Serial.print("Surface Quality: ");
+        Serial.println(motion.squal);
+        Serial.println("=====================");
+        */
     }
-
-    delay(10); // ポーリング間隔
+    
+    delay(5);  // 高速サンプリング
 }
