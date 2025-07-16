@@ -1,25 +1,15 @@
 #include "PMW3610.h"
 
-// レジスタ定義
-#define REG_Product_ID 0x00
-#define REG_Revision_ID 0x01
-#define REG_Motion 0x02
-#define REG_Delta_X_L 0x03
-#define REG_Delta_X_H 0x04
-#define REG_Delta_Y_L 0x05
-#define REG_Delta_Y_H 0x06
-#define REG_Power_Up_Reset 0x3A
-#define REG_Resolution 0x47
-#define REG_Motion_Burst 0x50
-
-PMW3610::PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin) {
+PMW3610::PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin)
+{
     _ncsPin = ncsPin;
     _sclkPin = sclkPin;
     _sdioPin = sdioPin;
     _currentCpi = 1000;
 }
 
-bool PMW3610::begin() {
+bool PMW3610::begin()
+{
     // ピン初期化
     pinMode(_ncsPin, OUTPUT);
     pinMode(_sclkPin, OUTPUT);
@@ -36,13 +26,13 @@ bool PMW3610::begin() {
 
     // Product IDを読み取り
     uint8_t productId = readRegBitBang(REG_Product_ID);
-    uint8_t revisionId = readRegBitBang(REG_Revision_ID);
 
     // PMW3610の期待されるProduct ID (通常0x42)
-    if (productId == 0x42 || (productId != 0x00 && productId != 0xFF)) {
+    if (productId == 0x42 || (productId != 0x00 && productId != 0xFF))
+    {
         // 初期設定
-        writeRegBitBang(0x3B, 0x00);  // Power-down register
-        readRegBitBang(REG_Motion);   // モーションレジスタをクリア
+        writeRegBitBang(0x3B, 0x00); // Power-down register
+        readRegBitBang(REG_Motion);  // モーションレジスタをクリア
 
         // デフォルトCPI設定
         setCpiBitBang(_currentCpi);
@@ -53,29 +43,35 @@ bool PMW3610::begin() {
     return false;
 }
 
-PMW3610::PMW3610_data PMW3610::readMotion() {
+PMW3610_data PMW3610::readMotion()
+{
     return readMotionBitBang();
 }
 
-void PMW3610::setCpi(uint16_t cpi) {
+void PMW3610::setCpi(uint16_t cpi)
+{
     setCpiBitBang(cpi);
     _currentCpi = cpi;
 }
 
-uint16_t PMW3610::getCpi() {
+uint16_t PMW3610::getCpi()
+{
     return _currentCpi;
 }
 
-void PMW3610::writeReg(uint8_t reg, uint8_t value) {
+void PMW3610::writeReg(uint8_t reg, uint8_t value)
+{
     writeRegBitBang(reg, value);
 }
 
-uint8_t PMW3610::readReg(uint8_t reg) {
+uint8_t PMW3610::readReg(uint8_t reg)
+{
     return readRegBitBang(reg);
 }
 
 // 3線SPI書き込み関数
-void PMW3610::writeRegBitBang(uint8_t reg, uint8_t value) {
+void PMW3610::writeRegBitBang(uint8_t reg, uint8_t value)
+{
     digitalWrite(_ncsPin, LOW);
     delayMicroseconds(2);
 
@@ -93,7 +89,8 @@ void PMW3610::writeRegBitBang(uint8_t reg, uint8_t value) {
 }
 
 // 3線SPI読み取り関数
-uint8_t PMW3610::readRegBitBang(uint8_t reg) {
+uint8_t PMW3610::readRegBitBang(uint8_t reg)
+{
     digitalWrite(_ncsPin, LOW);
     delayMicroseconds(2);
 
@@ -120,7 +117,8 @@ uint8_t PMW3610::readRegBitBang(uint8_t reg) {
 }
 
 // CPI設定関数
-void PMW3610::setCpiBitBang(uint16_t cpi) {
+void PMW3610::setCpiBitBang(uint16_t cpi)
+{
     uint8_t cpiValue;
 
     // CPI値をレジスタ値に変換
@@ -139,32 +137,67 @@ void PMW3610::setCpiBitBang(uint16_t cpi) {
     else if (cpi <= 1600)
         cpiValue = 0x06;
     else
-        cpiValue = 0x07;  // 3200 CPI
+        cpiValue = 0x07; // 3200 CPI
 
-    writeRegBitBang(REG_Resolution, cpiValue);
+    writeRegBitBang(REG_Res_Step, cpiValue);
 }
 
 // モーション読み取り関数
-PMW3610::PMW3610_data PMW3610::readMotionBitBang() {
-    PMW3610_data data = {false, 0, 0, 0, 0, 0, 0};
+PMW3610_data PMW3610::readMotionBitBang()
+{
+    PMW3610_data data = {false, 0, 0, 0};
 
     // モーションレジスタを読み取り
     uint8_t motion = readRegBitBang(REG_Motion);
 
-    if (motion & 0x80) { // MOT bit (motion detected)
+    if (motion & 0x80)
+    { // MOT bit (motion detected)
         data.isMotion = true;
 
         // デルタ値を読み取り
-        uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);
-        uint8_t deltaXH = readRegBitBang(REG_Delta_X_H);
-        uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);
-        uint8_t deltaYH = readRegBitBang(REG_Delta_Y_H);
-        data.squal = readRegBitBang(REG_SQUAL);
+        uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);    // 0x03
+        uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);    // 0x04
+        uint8_t deltaXY_H = readRegBitBang(REG_Delta_XY_H); // 0x05
+        data.squal = readRegBitBang(REG_SQUAL);             // 0x06
 
-        // 16ビット符号付き値に変換
-        data.dx = (int16_t)((deltaXH << 8) | deltaXL);
-        data.dy = (int16_t)((deltaYH << 8) | deltaYL);
+        // 12ビット符号付き値に変換
+        // 0x05レジスタ: 上位4bit = Delta_X上位, 下位4bit = Delta_Y上位
+        int16_t deltaX_12bit = (((deltaXY_H >> 4) & 0x0F) << 8) | deltaXL;
+        int16_t deltaY_12bit = ((deltaXY_H & 0x0F) << 8) | deltaYL;
+
+        // 12ビット符号付きを16ビット符号付きに変換（符号拡張）
+        if (deltaX_12bit & 0x800)
+            deltaX_12bit |= 0xF000;
+        if (deltaY_12bit & 0x800)
+            deltaY_12bit |= 0xF000;
+
+        data.dx = deltaX_12bit;
+        data.dy = deltaY_12bit;
     }
 
+    return data;
+}
+
+PMW3610_data PMW3610::readMotionInterrupt()
+{
+    PMW3610_data data = {false, 0, 0, 0};
+    uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);    // 0x03
+    uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);    // 0x04
+    uint8_t deltaXY_H = readRegBitBang(REG_Delta_XY_H); // 0x05
+    data.squal = readRegBitBang(REG_SQUAL);             // 0x06
+
+    // 12ビット符号付き値に変換
+    // 0x05レジスタ: 上位4bit = Delta_X上位, 下位4bit = Delta_Y上位
+    int16_t deltaX_12bit = (((deltaXY_H >> 4) & 0x0F) << 8) | deltaXL;
+    int16_t deltaY_12bit = ((deltaXY_H & 0x0F) << 8) | deltaYL;
+
+    // 12ビット符号付きを16ビット符号付きに変換（符号拡張）
+    if (deltaX_12bit & 0x800)
+        deltaX_12bit |= 0xF000;
+    if (deltaY_12bit & 0x800)
+        deltaY_12bit |= 0xF000;
+
+    data.dx = deltaX_12bit;
+    data.dy = deltaY_12bit;
     return data;
 }

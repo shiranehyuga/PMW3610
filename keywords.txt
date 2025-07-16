@@ -28,12 +28,14 @@ REG_Product_ID	LITERAL1
 REG_Revision_ID	LITERAL1
 REG_Motion	LITERAL1
 REG_Delta_X_L	LITERAL1
-REG_Delta_X_H	LITERAL1
 REG_Delta_Y_L	LITERAL1
-REG_Delta_Y_H	LITERAL1
+REG_Delta_XY_H	LITERAL1
 REG_SQUAL	LITERAL1
+REG_Shutter_Higher	LITERAL1
+REG_Shutter_Lower	LITERAL1
+REG_Pix_Max	LITERAL1
 REG_Power_Up_Reset	LITERAL1
-REG_Resolution	LITERAL1
+REG_Burst_Read	LITERAL1
 
 #######################################
 # Data Structure Members (LITERAL1)
