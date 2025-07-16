@@ -8,8 +8,26 @@ PMW3610光学センサー用のArduinoライブラリです。このライブラ
 - 標準SPIライブラリ不要
 - モーションデータの読み取り（X/Y移動量、品質情報）
 - CPI（Count Per Inch）設定可能（200-3200）
-- 簡単な初期化とセットアップ
-- ESP32、Arduino対応
+- 12ビット符号付き移動量データ対応
+
+## ファイル構成
+
+```
+PMW3610_Module/
+├── src/
+│   ├── PMW3610.h          # ヘッダファイル
+│   └── PMW3610.cpp        # 実装ファイル
+├── README.MD              # このファイル
+├── library.properties     # ライブラリプロパティ
+├── keywords.txt           # キーワード定義
+└── examples/              # サンプルコード
+    ├── BasicReading/
+    │   └── BasicReading.ino
+    ├── MouseExample/
+    │   └── MouseExample.ino
+    └── InterruptExample/
+        └── InterruptExample.ino
+```
 
 ## 対応ハードウェア
 
@@ -22,71 +40,22 @@ PMW3610光学センサー用のArduinoライブラリです。このライブラ
 
 ## 配線
 
-| PMW3610ピン | Arduinoピン例 | 説明 |
-|-------------|---------------|------|
-| VCC | 3.3V | 電源（3.3V） |
-| GND | GND | グランド |
-| NCS | D17 | チップセレクト（任意のデジタルピン） |
-| SCLK | D18 | SPIクロック（任意のデジタルピン） |
-| SDIO | D19 | SPIデータ双方向（任意のデジタルピン） |
+| PMW3610ピン | Arduinoピン例 | 説明                                             |
+| ----------- | ------------- | ------------------------------------------------ |
+| VCC         | 3.3V          | 電源（3.3V）                                     |
+| GND         | GND           | グランド                                         |
+| NCS         | D10           | チップセレクト（任意のデジタルピン）             |
+| SCLK        | D13           | SPIクロック（任意のデジタルピン）                |
+| SDIO        | D11           | SPIデータ双方向（任意のデジタルピン）            |
+| MOTION      | D2            | 動作検出割り込みピン（オプション）               |
 
 **重要**: 3線SPI BitBang実装のため、標準SPIピンを使用する必要はありません。任意のデジタルピンが使用可能です。
 
 ## インストール
 
-1. このライブラリをArduino IDEのlibrariesフォルダにコピー
-2. Arduino IDEを再起動
-3. `スケッチ` → `ライブラリをインクルード` → `PMW3610_Module`を選択
+このリポジトリをダウンロードまたはクローンし、Arduinoのlibrariesフォルダに配置してください
 
-## 使用方法
 
-### 基本的な使用例
-
-```cpp
-#include "PMW3610.h"
-
-// 3線SPI用ピン定義
-const int PIN_NCS = 17;   // チップセレクト
-const int PIN_SCLK = 18;  // SPIクロック
-const int PIN_SDIO = 19;  // SPIデータ（双方向）
-
-PMW3610 sensor(PIN_NCS, PIN_SCLK, PIN_SDIO);
-
-void setup() {
-    Serial.begin(115200);
-    
-    if (sensor.begin()) {
-        Serial.println("センサー初期化成功");
-        sensor.setCpi(1000);  // CPI設定
-    } else {
-        Serial.println("センサー初期化失敗");
-        while (1);
-    }
-}
-
-void loop() {
-    PMW3610::PMW3610_data data = sensor.readMotion();
-    
-    if (data.isMotion) {
-        Serial.print("dx: ");
-        Serial.print(data.dx);
-        Serial.print(", dy: ");
-        Serial.println(data.dy);
-    }
-    
-    delay(5);
-}
-```
-
-### CPI設定
-
-```cpp
-// CPIを1600に設定
-sensor.setCpi(1600);
-
-// 現在のCPI設定を取得
-uint16_t currentCpi = sensor.getCpi();
-```
 
 ## API リファレンス
 
@@ -106,7 +75,7 @@ PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin)
 
 ##### `bool begin()`
 
-センサーを初期化します。
+センサーを初期化します。Product ID（0x42）を確認して初期化の成功を判定します。
 
 **戻り値**
 - `true`: 初期化成功
@@ -114,7 +83,7 @@ PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin)
 
 ##### `PMW3610_data readMotion()`
 
-モーションデータを読み取ります。
+モーションデータを読み取ります。12ビット符号付き値として処理されます。
 
 **戻り値**
 - `PMW3610_data`: モーションデータ構造体
@@ -128,7 +97,7 @@ PMW3610(uint8_t ncsPin, uint8_t sclkPin, uint8_t sdioPin)
 
 ##### `void setCpi(uint16_t cpi)`
 
-CPI（Count Per Inch）を設定します。
+CPI（Count Per Inch）を設定します。入力値は最も近い有効値に丸められます。
 
 **パラメータ**
 - `cpi`: CPI値（200, 400, 600, 800, 1000, 1200, 1600, 3200）
@@ -156,73 +125,48 @@ CPI（Count Per Inch）を設定します。
 ```cpp
 struct PMW3610_data {
     bool isMotion;          // モーション検出フラグ
-    int16_t dx;             // X軸移動量
-    int16_t dy;             // Y軸移動量
-    uint8_t squal;          // 表面品質
-    uint8_t shutterUpper;   // シャッター上位バイト
-    uint8_t shutterLower;   // シャッター下位バイト
-    uint8_t maxPixel;       // 最大ピクセル値
+    int16_t dx;             // X軸移動量（12ビット符号付き、符号拡張済み）
+    int16_t dy;             // Y軸移動量（12ビット符号付き、符号拡張済み）
+    uint8_t squal;          // 表面品質（0-255）
 };
 ```
 
-### レジスタ定数
+### 主要レジスタ定数
 
 ```cpp
-#define REG_Product_ID 0x00
-#define REG_Revision_ID 0x01
-#define REG_Motion 0x02
-#define REG_Delta_X_L 0x03
-#define REG_Delta_X_H 0x04
-#define REG_Delta_Y_L 0x05
-#define REG_Delta_Y_H 0x06
-#define REG_SQUAL 0x07
-#define REG_Power_Up_Reset 0x3A
-#define REG_Resolution 0x47
+// 基本制御レジスタ
+#define REG_Product_ID 0x00         // Product ID（0x42）
+#define REG_Revision_ID 0x01        // Revision ID
+#define REG_Motion 0x02             // Motion状態
+#define REG_Delta_X_L 0x03          // X移動量下位8ビット
+#define REG_Delta_Y_L 0x04          // Y移動量下位8ビット
+#define REG_Delta_XY_H 0x05         // X/Y移動量上位4ビット
+#define REG_SQUAL 0x06              // Surface Quality
+#define REG_Power_Up_Reset 0x3A     // パワーアップリセット
+#define REG_Shutdown 0x3B           // シャットダウン制御
+#define REG_Res_Step 0x85           // CPI設定レジスタ
+
+// その他の制御レジスタ
+#define REG_Shutter_Higher 0x07     // シャッター上位
+#define REG_Shutter_Lower 0x08      // シャッター下位
+#define REG_Pix_Max 0x09           // 最大ピクセル値
+#define REG_Burst_Read 0x12        // バースト読み取り
 ```
 
-## トラブルシューティング
-
-### センサーが初期化されない
-
-1. **配線の確認**: NCS、SCLK、SDIOピンの接続を確認
-2. **電圧レベル**: 3.3V電源を使用しているか確認
-3. **ロジックレベル**: 5V Arduinoの場合はレベルシフターが必要
-4. **Product ID**: readReg(REG_Product_ID)で0x42が返されるか確認
-
-### モーションが検出されない
-
-1. **表面**: センサーの下に適切な表面があるか確認（光沢のない表面推奨）
-2. **CPI設定**: 使用環境に適したCPI値に調整
-3. **ポーリング頻度**: delay時間を5ms程度に設定
-4. **品質**: data.squal値を確認（低い場合は表面を変更）
-
-### データが不正確
-
-1. **配線**: ノイズや接続不良を確認
-2. **電源の安定性**: 3.3V電源が安定しているか確認
-3. **ピン設定**: 正しいピン番号が設定されているか確認
 
 ## 仕様
 
 - **通信方式**: 3線SPI BitBang
-- **電源電圧**: 3.3V
+- **電源電圧**: 3.3V（2.7V-3.6V）
+- **消費電流**: 15mA（通常動作時）
 - **CPI範囲**: 200, 400, 600, 800, 1000, 1200, 1600, 3200
+- **データ解像度**: 12ビット符号付き
 - **最大フレームレート**: 12,000 FPS
 - **最大速度**: 60 IPS（Inch Per Second）
 - **Product ID**: 0x42
+- **動作温度**: -40°C to +85°C
 
 ## ライセンス
 
-このライブラリはMITライセンスの下で公開されています。
+このライブラリはMITライセンスの下で公開されています。詳細は`LICENSE`ファイルを参照してください。
 
-## 貢献
-
-バグ報告や機能要望は、GitHubのIssuesページでお願いします。プルリクエストも歓迎します。
-
-## 更新履歴
-
-### v1.0.0
-- 初回リリース
-- 3線SPI BitBang実装
-- 基本的なモーション読み取り機能
-- CPI設定機能（8段階）

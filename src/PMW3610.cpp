@@ -177,27 +177,3 @@ PMW3610_data PMW3610::readMotionBitBang()
 
     return data;
 }
-
-PMW3610_data PMW3610::readMotionInterrupt()
-{
-    PMW3610_data data = {false, 0, 0, 0};
-    uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);    // 0x03
-    uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);    // 0x04
-    uint8_t deltaXY_H = readRegBitBang(REG_Delta_XY_H); // 0x05
-    data.squal = readRegBitBang(REG_SQUAL);             // 0x06
-
-    // 12ビット符号付き値に変換
-    // 0x05レジスタ: 上位4bit = Delta_X上位, 下位4bit = Delta_Y上位
-    int16_t deltaX_12bit = (((deltaXY_H >> 4) & 0x0F) << 8) | deltaXL;
-    int16_t deltaY_12bit = ((deltaXY_H & 0x0F) << 8) | deltaYL;
-
-    // 12ビット符号付きを16ビット符号付きに変換（符号拡張）
-    if (deltaX_12bit & 0x800)
-        deltaX_12bit |= 0xF000;
-    if (deltaY_12bit & 0x800)
-        deltaY_12bit |= 0xF000;
-
-    data.dx = deltaX_12bit;
-    data.dy = deltaY_12bit;
-    return data;
-}
