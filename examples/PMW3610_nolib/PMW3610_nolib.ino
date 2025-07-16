@@ -9,12 +9,11 @@ const int PIN_NCS = 17;  // チップセレクト
 #define REG_Revision_ID 0x01
 #define REG_Motion 0x02
 #define REG_Delta_X_L 0x03
-#define REG_Delta_X_H 0x04
-#define REG_Delta_Y_L 0x05
-#define REG_Delta_Y_H 0x06
-#define REG_SQUAL 0x07
+#define REG_Delta_Y_L 0x04
+#define REG_Delta_XY_H 0x05
+#define REG_SQUAL 0x06
 #define REG_Power_Up_Reset 0x3A
-#define REG_Resolution 0x47
+#define REG_Res_Step 0x85
 
 void setup()
 {
@@ -50,7 +49,7 @@ void setup()
     Serial.println(revisionId, HEX);
 
     // PMW3610の期待されるProduct ID (通常0x42)
-    if (productId == 0x42 || productId != 0x00 && productId != 0xFF)
+    if (productId == 0x42 || (productId != 0x00 && productId != 0xFF))
     {
         Serial.println("✓ PMW3610 detected!");
 
@@ -160,7 +159,7 @@ void setCpiBitBang(uint16_t cpi)
     else
         cpiValue = 0x07; // 3200 CPI
 
-    writeRegBitBang(REG_Resolution, cpiValue);
+    writeRegBitBang(REG_Res_Step, cpiValue);
 
     Serial.print("CPI set to approximately ");
     Serial.println(cpi);
@@ -175,15 +174,19 @@ void readMotionBitBang()
     if (motion & 0x80) // MOT bit (motion detected)
     {
         // デルタ値を読み取り
-        uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);
-        uint8_t deltaXH = readRegBitBang(REG_Delta_X_H);
-        uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);
-        uint8_t deltaYH = readRegBitBang(REG_Delta_Y_H);
-        uint8_t squal = readRegBitBang(REG_SQUAL);
+        uint8_t deltaXL = readRegBitBang(REG_Delta_X_L);    // 0x03
+        uint8_t deltaYL = readRegBitBang(REG_Delta_Y_L);    // 0x04
+        uint8_t deltaXY_H = readRegBitBang(REG_Delta_XY_H); // 0x05
+        uint8_t squal = readRegBitBang(REG_SQUAL);          // 0x06
 
-        // 16ビット符号付き値に変換
-        int16_t deltaX = (int16_t)((deltaXH << 8) | deltaXL);
-        int16_t deltaY = (int16_t)((deltaYH << 8) | deltaYL);
+        int16_t deltaX_12bit = (((deltaXY_H >> 4) & 0x0F) << 8) | deltaXL;
+        int16_t deltaY_12bit = ((deltaXY_H & 0x0F) << 8) | deltaYL;
+
+        // 12ビット符号付きを16ビット符号付きに変換（符号拡張）
+        if (deltaX_12bit & 0x800)
+            deltaX_12bit |= 0xF000;
+        if (deltaY_12bit & 0x800)
+            deltaY_12bit |= 0xF000;
 
         // Serial.println("=== Motion Detected ===");
         // Serial.print("Delta X: ");
@@ -195,9 +198,11 @@ void readMotionBitBang()
         // Serial.print("Motion Reg: 0x");
         // Serial.println(motion, HEX);
         // Serial.println("=====================");
-        Serial.print(deltaX);
+        Serial.print(deltaX_12bit);
         Serial.print(",");
-        Serial.println(deltaY);
+        Serial.print(deltaY_12bit);
+        Serial.print(",");
+        Serial.println(squal);
     }
     // else
     // {
