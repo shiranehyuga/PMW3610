@@ -86,5 +86,5 @@ void loop()
         */
     }
 
-    delay(5); // 高速サンプリング
+    delay(5);
 }
