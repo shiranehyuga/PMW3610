@@ -85,9 +85,6 @@ public:
     // モーション読み取り
     PMW3610_data readMotion();
 
-    // MOTIONピンによる割り込み検出時用のモーション読み取り
-    PMW3610_data readMotionInterrupt();
-
     // CPI設定
     void setCpi(uint16_t cpi);
     uint16_t getCpi();
